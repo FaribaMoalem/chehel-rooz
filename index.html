@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#1c5c3e">
+  <title>چهل‌روز</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%231c5c3e'/%3E%3Ctext x='32' y='42' text-anchor='middle' font-size='26' fill='white' font-family='Tahoma'%3E40%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="styles.css">
+  <script>
+    try {
+      var raw = localStorage.getItem("chehel-rooz-v1");
+      if (raw) {
+        var saved = JSON.parse(raw);
+        if (saved.dark) document.documentElement.classList.add("dark");
+        if (saved.fontScale) document.documentElement.style.setProperty("--read-scale", saved.fontScale);
+      }
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <div id="app"></div>
+  <div id="toast" hidden role="status"></div>
+  <div id="modal" class="modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true">
+      <p id="modalText"></p>
+      <div class="modal-actions">
+        <button type="button" id="modalOk" class="primary">بله</button>
+        <button type="button" id="modalCancel" class="ghost">انصراف</button>
+      </div>
+    </div>
+  </div>
+  <script src="jalaali.js?v=2"></script>
+  <script src="quran-data.js?v=2"></script>
+  <script src="ashura.js?v=2"></script>
+  <script src="app.js?v=2"></script>
+</body>
+</html>
