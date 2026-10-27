@@ -4,10 +4,21 @@
   var MONTHS = ["فروردین", "اردیبهشت", "خرداد", "تیر", "مرداد", "شهریور", "مهر", "آبان", "آذر", "دی", "بهمن", "اسفند"];
   var WEEKDAYS = ["یکشنبه", "دوشنبه", "سه‌شنبه", "چهارشنبه", "پنجشنبه", "جمعه", "شنبه"];
   var SUGGESTIONS = ["سوره واقعه", "سوره الرحمن", "دعای توسل", "دعای فرج", "نماز شب", "صلوات"];
+  var WEEKDAY_SURAHS = {
+    6: { surah: 48, name: "سوره فتح" },
+    0: { surah: 36, name: "سوره یس" },
+    1: { surah: 56, name: "سوره واقعه" },
+    2: { surah: 55, name: "سوره الرحمن" },
+    3: { surah: 72, name: "سوره جن" },
+    4: { surah: 67, name: "سوره ملک" },
+    5: { surah: 32, name: "سوره سجده" }
+  };
   var BUILTINS = [
     { id: "mulk", title: "سوره ملک", kind: "quran", surah: 67 },
     { id: "ashura", title: "زیارت عاشورا", kind: "ashura" },
-    { id: "yasin", title: "سوره یس", kind: "quran", surah: 36 }
+    { id: "yasin", title: "سوره یس", kind: "quran", surah: 36 },
+    { id: "shastqaf", title: "دعای شصت قاف", kind: "shastqaf" },
+    { id: "weekday", title: "سورهٔ روز هفته", kind: "weekday" }
   ];
   var FONT_STEPS = [1, 1.15, 1.3, 1.45, 1.6, 1.75];
 
@@ -77,6 +88,48 @@
     return withWeekday ? WEEKDAYS[date.getDay()] + " " + core : core;
   }
 
+  function weekdayInfo(iso) {
+    var day = parseISO(iso || isoLocal()).getDay();
+    var info = WEEKDAY_SURAHS[day];
+    return {
+      day: day,
+      dayName: WEEKDAYS[day],
+      surah: info.surah,
+      name: info.name
+    };
+  }
+
+  function itemTitle(item, iso) {
+    if (item.kind === "weekday") {
+      var info = weekdayInfo(iso || isoLocal());
+      return info.name + " · " + info.dayName;
+    }
+    return item.title;
+  }
+
+  function itemSurah(item, iso) {
+    if (item.kind === "weekday") return weekdayInfo(iso || isoLocal()).surah;
+    return item.surah;
+  }
+
+  function bookmarkKey(item, iso) {
+    if (item.kind === "weekday") return "weekday-" + itemSurah(item, iso);
+    return item.id;
+  }
+
+  function makeBuiltin(b) {
+    return { id: b.id, title: b.title, kind: b.kind, surah: b.surah, builtin: true, done: {} };
+  }
+
+  function orderItems(items) {
+    var ids = BUILTINS.map(function (b) { return b.id; });
+    var built = ids.map(function (id) {
+      return items.filter(function (item) { return item.id === id; })[0];
+    }).filter(Boolean);
+    var custom = items.filter(function (item) { return ids.indexOf(item.id) === -1; });
+    return built.concat(custom);
+  }
+
   function fresh() {
     return {
       startDate: isoLocal(),
@@ -91,9 +144,7 @@
       welcomed: false,
       counts: {},
       bookmark: {},
-      items: BUILTINS.map(function (b) {
-        return { id: b.id, title: b.title, kind: b.kind, surah: b.surah, builtin: true, done: {} };
-      })
+      items: BUILTINS.map(makeBuiltin)
     };
   }
 
@@ -110,9 +161,7 @@
     var base = fresh();
     var items = Array.isArray(raw.items) ? raw.items.filter(function (item) { return item && item.id; }) : [];
     BUILTINS.forEach(function (b) {
-      if (!items.some(function (item) { return item.id === b.id; })) {
-        items.unshift({ id: b.id, title: b.title, kind: b.kind, surah: b.surah, builtin: true, done: {} });
-      }
+      if (!items.some(function (item) { return item.id === b.id; })) items.push(makeBuiltin(b));
     });
     items.forEach(function (item) {
       var builtin = BUILTINS.filter(function (b) { return b.id === item.id; })[0];
@@ -121,7 +170,8 @@
       if (builtin) {
         item.builtin = true;
         item.kind = builtin.kind;
-        item.surah = builtin.surah;
+        if (builtin.surah) item.surah = builtin.surah;
+        else delete item.surah;
         delete item.text;
       } else {
         item.builtin = false;
@@ -130,6 +180,7 @@
         delete item.surah;
       }
     });
+    items = orderItems(items);
     var counts = {};
     if (raw.counts && typeof raw.counts === "object") {
       Object.keys(raw.counts).forEach(function (day) {
@@ -227,9 +278,13 @@
 
   function accentClass(item) {
     if (item.id === "ashura") return "accent-maroon";
-    if (item.id === "yasin") return "accent-teal";
-    if (item.kind === "custom") return "accent-brass";
+    if (item.id === "yasin" || item.kind === "weekday") return "accent-teal";
+    if (item.kind === "custom" || item.kind === "shastqaf") return "accent-brass";
     return "accent-green";
+  }
+
+  function isQuranLike(item) {
+    return item.kind === "quran" || item.kind === "weekday";
   }
 
   function toast(message) {
@@ -368,7 +423,7 @@
       ]),
       !storageOk ? el("p", { class: "hint-btn", text: "این مرورگر تیک‌ها را نگه نمی‌دارد. برنامه را با Chrome یا Edge باز کنید." }) : null,
       !state.welcomed ? el("div", { class: "welcome" }, [
-        el("p", { text: "هر روز سورهٔ ملک، زیارت عاشورا و سورهٔ یس را بخوانید و دکمهٔ «امروز خواندم» را بزنید. برنامه می‌گوید امروز روز چندم است. اگر ذکر دیگری هم دارید، پایین صفحه اضافه کنید. برای زیارت عاشورا شمارندهٔ صد لعن و صد سلام هست." }),
+        el("p", { text: "هر روز سورهٔ ملک، زیارت عاشورا، سورهٔ یس و دعای شصت قاف را بخوانید. سورهٔ مخصوص همان روز هفته هم هست؛ مثلاً شنبه فتح و یکشنبه یس. بعد از خواندن، «امروز خواندم» را بزنید." }),
         el("button", { type: "button", class: "primary wide", text: "باشه، شروع کنیم", onclick: function () { state.welcomed = true; save(); rerender(); } })
       ]) : null,
       showYesterday ? el("button", {
@@ -388,9 +443,12 @@
     var during = phase.mode === "during";
     var on = !!item.done[today];
     var status = !during ? "خارج از این چهل روز" : on ? "امروز خوانده شد" : "برای امروز مانده";
+    if (item.kind === "weekday" && during) {
+      status = (on ? "امروز خوانده شد · " : "امروز: ") + weekdayInfo(today).name;
+    }
     return el("article", { class: "card " + accentClass(item) }, [
       el("div", { class: "card-head" }, [
-        el("h2", { class: "card-title", text: item.title }),
+        el("h2", { class: "card-title", text: itemTitle(item, today) }),
         el("span", { class: "card-count", text: faNum(countDone(item)) + " از " + faNum(TOTAL) })
       ]),
       el("p", { class: "status", text: status }),
@@ -426,22 +484,24 @@ function todayButton(item) {
       ]);
     }
     var body;
-    if (item.kind === "quran") body = quranView(item);
+    if (isQuranLike(item)) body = quranView(item);
     else if (item.kind === "ashura") body = ashuraView();
+    else if (item.kind === "shastqaf") body = shastqafView();
     else body = customView(item);
+    var today = isoLocal();
     return el("section", {}, [
       el("div", { class: "toolbar" }, [
         todayButton(item),
         el("button", { type: "button", class: "ghost", text: "برگشت", onclick: function () { go("#/"); } }),
         el("button", { type: "button", class: "ghost", text: "بزرگ‌تر", onclick: function () { stepFont(1); } }),
         el("button", { type: "button", class: "ghost", text: "کوچک‌تر", onclick: function () { stepFont(-1); } }),
-        item.kind === "quran" ? el("button", {
+        isQuranLike(item) ? el("button", {
           type: "button",
           class: "ghost",
           text: state.showTranslation ? "پنهان کردن ترجمه" : "نمایش ترجمه",
           onclick: function () { state.showTranslation = !state.showTranslation; save(); rerender(); }
         }) : null,
-        item.kind === "quran" ? el("button", {
+        isQuranLike(item) ? el("button", {
           type: "button",
           id: "playBtn",
           class: "primary",
@@ -455,15 +515,18 @@ function todayButton(item) {
           onclick: function () { state.dark = !state.dark; save(); applyTheme(); rerender(); }
         })
       ]),
-      el("h1", { class: "page-title", text: item.title }),
+      el("h1", { class: "page-title", text: itemTitle(item, today) }),
+      item.kind === "weekday" ? el("p", { class: "muted", text: "هر روز هفته یک سوره دارد: شنبه فتح، یکشنبه یس، دوشنبه واقعه، سه‌شنبه الرحمن، چهارشنبه جن، پنجشنبه ملک، جمعه سجده." }) : null,
       body
     ]);
   }
 
   function quranView(item) {
-    var data = window.QURAN && window.QURAN[item.surah];
+    var surah = itemSurah(item);
+    var data = window.QURAN && window.QURAN[surah];
     if (!data) return el("p", { text: "متن این سوره پیدا نشد." });
-    var bookmark = state.bookmark[item.id] || 0;
+    var key = bookmarkKey(item);
+    var bookmark = state.bookmark[key] || 0;
     return el("div", {}, [
       el("p", { class: "muted center", text: data.arabicName + " · " + faNum(data.ayahs.length) + " آیه" }),
       el("p", { class: "small center", id: "trStatus", text: state.showTranslation ? "ترجمه با اولین اتصال اینترنت می‌ماند روی همین رایانه." : "" }),
@@ -489,6 +552,20 @@ function todayButton(item) {
         ]);
       })),
       el("p", { class: "small center", text: "صوت: مشاری بن راشد العفاسی. با زدن هر آیه، خواندن از همان‌جا شروع می‌شود." })
+    ]);
+  }
+
+  function shastqafView() {
+    var data = window.SHASTQAF;
+    if (!data) return el("p", { text: "متن دعای شصت قاف پیدا نشد." });
+    return el("div", {}, [
+      el("p", { class: "muted", text: data.note }),
+      el("div", {}, data.sections.map(function (section) {
+        return el("section", { class: "card section" }, [
+          el("h2", { text: section.label }),
+          el("p", { class: "script", text: section.ar })
+        ]);
+      }))
     ]);
   }
 
@@ -652,7 +729,7 @@ function todayButton(item) {
             type: "button",
             class: on ? "chip-toggle on" : "chip-toggle",
             onclick: function () { toggleDate(item.id, selected); }
-          }, [on ? "✓ " + item.title : item.title]);
+          }, [on ? "✓ " + itemTitle(item, selected) : itemTitle(item, selected)]);
         })),
         el("div", { class: "actions" }, [
           el("button", { type: "button", class: "primary", text: "همه را خواندم", onclick: function () { markAll(selected, true); } }),
@@ -855,7 +932,7 @@ function todayButton(item) {
     state.lastNotified = today;
     save();
     var note = new Notification("یادآوری چهل‌روز", {
-      body: "امروز روز " + faNum(phase.day) + " است. مانده: " + pending.map(function (item) { return item.title; }).join("، ")
+      body: "امروز روز " + faNum(phase.day) + " است. مانده: " + pending.map(function (item) { return itemTitle(item); }).join("، ")
     });
     note.onclick = function () { window.focus(); note.close(); };
   }
@@ -1005,8 +1082,10 @@ function todayButton(item) {
   }
 
   async function playFrom(item, index) {
-    var data = window.QURAN && window.QURAN[item.surah];
+    var surah = itemSurah(item);
+    var data = window.QURAN && window.QURAN[surah];
     if (!data) { toast("صوت این سوره آماده نیست."); return; }
+    var key = bookmarkKey(item);
     haltAudio();
     var token = ++player.token;
     player.itemId = item.id;
@@ -1017,7 +1096,7 @@ function todayButton(item) {
       if (token !== player.token) return;
       player.index = i;
       if (!state.bookmark) state.bookmark = {};
-      state.bookmark[item.id] = i;
+      state.bookmark[key] = i;
       save();
       highlightAyah(i);
       var result;
@@ -1044,6 +1123,7 @@ function todayButton(item) {
   }
 
   function onPlayClick(item) {
+    var key = bookmarkKey(item);
     if (player.playing && player.itemId === item.id) {
       haltAudio();
       var btn = document.getElementById("playBtn");
@@ -1051,7 +1131,7 @@ function todayButton(item) {
       player.itemId = item.id;
       return;
     }
-    var start = player.itemId === item.id && player.index >= 0 ? player.index : (state.bookmark[item.id] || 0);
+    var start = player.itemId === item.id && player.index >= 0 ? player.index : (state.bookmark[key] || 0);
     playFrom(item, start);
   }
 
@@ -1064,8 +1144,9 @@ function todayButton(item) {
   }
 
   function hydrateTranslation(item, token) {
-    if (!state.showTranslation || item.kind !== "quran") return;
-    ensureTranslation(item.surah).then(function (map) {
+    if (!state.showTranslation || !isQuranLike(item)) return;
+    var surah = itemSurah(item);
+    ensureTranslation(surah).then(function (map) {
       if (token !== trToken) return;
       if (parseRoute().id !== item.id) return;
       document.querySelectorAll("[data-tr]").forEach(function (node) {
@@ -1140,7 +1221,7 @@ function todayButton(item) {
       if (target) target.focus({ preventScroll: true });
     }
     if (sameRead) requestAnimationFrame(function () { highlightAyah(player.index); });
-    if (route.name === "read" && item && item.kind === "quran") hydrateTranslation(item, ++trToken);
+    if (route.name === "read" && item && isQuranLike(item)) hydrateTranslation(item, ++trToken);
   }
 
   function rerender() { renderAt(true); }
